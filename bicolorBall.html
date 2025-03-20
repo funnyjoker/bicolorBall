@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>双色球生成器（奇偶校验版）</title>
+    <style>
+        .container { max-width: 800px; margin: 20px auto; padding: 20px; }
+        .ball-container { margin: 20px 0; }
+        .red-balls, .blue-balls { display: flex; flex-wrap: wrap; gap: 5px; }
+        .ball {
+            width: 30px; height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: white;
+        }
+        .red { background-color: #ccc; }
+        .blue { background-color: #e0e0e0; }
+        .selected.red { background-color: #ff4444; }
+        .selected.blue { background-color: #4444ff; }
+        .groups { margin-top: 30px; }
+        .group { display: flex; gap: 10px; margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .warning { color: #ff4444; margin: 10px 0; }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover { background-color: #45a049; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <button onclick="generate()">生成新组合</button>
+        <div class="ball-container">
+            <h3>红球（1-33）</h3>
+            <div class="red-balls" id="redBalls"></div>
+        </div>
+        <div class="ball-container">
+            <h3>蓝球（1-16）</h3>
+            <div class="blue-balls" id="blueBalls"></div>
+        </div>
+        <div class="groups" id="groups"></div>
+    </div>
+
+    <script>
+        // 初始化球显示
+        function initBalls() {
+            const redContainer = document.getElementById('redBalls');
+            const blueContainer = document.getElementById('blueBalls');
+            
+            // 生成红球
+            for (let i = 1; i <= 33; i++) {
+                const ball = document.createElement('div');
+                ball.className = `ball red ${i % 2 ? 'odd' : 'even'}`;
+                ball.textContent = i;
+                redContainer.appendChild(ball);
+            }
+            
+            // 生成蓝球
+            for (let i = 1; i <= 16; i++) {
+                const ball = document.createElement('div');
+                ball.className = 'ball blue';
+                ball.textContent = i;
+                blueContainer.appendChild(ball);
+            }
+        }
+
+        // 生成随机组合
+        function generate() {
+            // 选择红球（确保包含10-20个奇数）
+            let reds, oddsCount;
+            do {
+                reds = shuffle([...Array(33).keys()].map(n => n + 1)).slice(0, 30);
+                oddsCount = reds.filter(n => n % 2 !== 0).length;
+            } while (oddsCount < 10 || oddsCount > 20);
+
+            // 选择蓝球
+            const blues = shuffle([...Array(16).keys()].map(n => n + 1)).slice(0, 5);
+
+            // 更新选中状态
+            updateSelection('red', reds);
+            updateSelection('blue', blues);
+
+            // 分组逻辑
+            const groups = createGroups(reds, blues);
+            displayGroups(groups);
+        }
+
+        // 创建符合条件的分组
+        function createGroups(reds, blues) {
+            const odds = reds.filter(n => n % 2 !== 0);
+            const evens = reds.filter(n => n % 2 === 0);
+            const groupOddCounts = distributeOdds(odds.length);
+
+            // 分配红球
+            shuffle(odds);
+            shuffle(evens);
+            const groups = [];
+            let oIdx = 0, eIdx = 0;
+
+            groupOddCounts.forEach(count => {
+                const group = [
+                    ...odds.slice(oIdx, oIdx + count),
+                    ...evens.slice(eIdx, eIdx + (6 - count))
+                ];
+                oIdx += count;
+                eIdx += (6 - count);
+                groups.push(shuffle(group).sort((a, b) => a - b));
+            });
+
+            // 分配蓝球
+            return shuffle(blues).map((blue, i) => ({
+                reds: groups[i],
+                blue: blue
+            }));
+        }
+
+        // 分配奇数数量到各组
+        function distributeOdds(totalOdds) {
+            const counts = new Array(5).fill(2);
+            let remaining = totalOdds - 10;
+            while (remaining > 0) {
+                const idx = Math.floor(Math.random() * 5);
+                if (counts[idx] < 4) {
+                    counts[idx]++;
+                    remaining--;
+                }
+            }
+            return counts;
+        }
+
+        // 更新选中状态
+        function updateSelection(color, selected) {
+            const balls = document.getElementsByClassName(color);
+            Array.from(balls).forEach(ball => {
+                ball.classList.toggle('selected', selected.includes(Number(ball.textContent)));
+            });
+        }
+
+        // 显示分组
+        function displayGroups(groups) {
+            const container = document.getElementById('groups');
+            container.innerHTML = '<h3>生成的5组组合：</h3>';
+            
+            groups.forEach((group, index) => {
+                const groupDiv = document.createElement('div');
+                groupDiv.className = 'group';
+                groupDiv.innerHTML = `
+                    <strong>第 ${index + 1} 组：</strong>
+                    ${group.reds.map(n => `
+                        <span class="ball red selected ${n % 2 ? 'odd' : 'even'}">${n}</span>
+                    `).join('')}
+                    <span class="ball blue selected">${group.blue}</span>
+                    <!-- <div class="warning">奇数数量：${group.reds.filter(n => n%2 !==0).length}</div> -->
+                `;
+                container.appendChild(groupDiv);
+            });
+        }
+
+        // 洗牌算法
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // 初始化页面
+        initBalls();
+    </script>
+</body>
+</html>
